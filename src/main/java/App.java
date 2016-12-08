@@ -2,6 +2,7 @@ package main.java;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.lib.input.TextInputFormat;
@@ -73,8 +74,8 @@ public class App
 		/****
 		 * Map output
 		 ****/
-		job.setMapOutputKeyClass(Object.class);
-		job.setMapOutputValueClass(Text.class);
+		job.setMapOutputKeyClass(Text.class);
+		job.setMapOutputValueClass(IntWritable.class);
 		
 		/*****
 		 * Combiner
@@ -89,14 +90,20 @@ public class App
 		/*****
 		 * Final output
 		 *****/
-		job.setOutputKeyClass(Object.class);
-		job.setOutputValueClass(Text.class);
+		job.setOutputKeyClass(Text.class);
+		job.setOutputValueClass(IntWritable.class);
 		
 		/*****
 		 * Paths
 		 *****/
 		TextInputFormat.addInputPath(job, new Path(inputPath));
 		TextOutputFormat.setOutputPath(job, new Path(outputPath));
+		
+		/*****
+		 * Formats
+		 *****/
+		job.setInputFormatClass(TextInputFormat.class);
+		job.setOutputFormatClass(TextOutputFormat.class);
 		
 		job.waitForCompletion(true);
 	}
