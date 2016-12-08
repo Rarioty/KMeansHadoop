@@ -11,9 +11,9 @@ Download this project and compile it with maven.
 
 Launch the produced .jar file on hadoop with several arguments:
 
-inputPath: Filepath to a csv file containing some data in columns
-outPath: Filepath to the result file
-k: The number of clusters for the K-Means algorithm
+inputPath: Filepath to a csv file containing some data in columns <br />
+outPath: Filepath to the result file <br />
+k: The number of clusters for the K-Means algorithm <br />
 c: The column to analyse
 
 ## Licence
