@@ -1,8 +1,10 @@
 package main.java;
+
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Job;
+import org.apache.hadoop.mapreduce.lib.input.TextInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.TextOutputFormat;
 
 public class App
@@ -17,7 +19,7 @@ public class App
 	
 	public static void main( String[] args ) throws Exception {
 		///// Parse arguments
-		if (args.length < 5)
+		if (args.length < 4)
 		{
 			usage(args);
 			return;
@@ -38,10 +40,10 @@ public class App
 		}
 		
 		try {
-			columnNumber = Integer.parseInt(args[2]);
+			columnNumber = Integer.parseInt(args[3]);
 		}
 		catch(NumberFormatException ex) {
-			System.out.println("[Error] Can't parse cluster number !");
+			System.out.println("[Error] Can't parse column number !");
 			usage(args);
 			return;
 		}
@@ -90,6 +92,10 @@ public class App
 		job.setOutputKeyClass(Object.class);
 		job.setOutputValueClass(Text.class);
 		
+		/*****
+		 * Paths
+		 *****/
+		TextInputFormat.addInputPath(job, new Path(inputPath));
 		TextOutputFormat.setOutputPath(job, new Path(outputPath));
 		
 		job.waitForCompletion(true);
