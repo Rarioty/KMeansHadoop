@@ -100,7 +100,7 @@ public class App
 		/*****
 		 * Mapper
 		 *****/
-		job.setMapperClass(KMapper.class);
+		job.setMapperClass(KIteratorMapper.class);
 		
 		/****
 		 * Map output
@@ -111,12 +111,12 @@ public class App
 		/*****
 		 * Combiner
 		 *****/
-		job.setCombinerClass(KCombiner.class);
+		job.setCombinerClass(KIteratorCombiner.class);
 		
 		/****
 		 * Reducer
 		 ****/
-		job.setReducerClass(KReducer.class);
+		job.setReducerClass(KIteratorReducer.class);
 		
 		/*****
 		 * Final output

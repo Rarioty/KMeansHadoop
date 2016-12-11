@@ -8,13 +8,13 @@ import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.mapreduce.Reducer;
 
 /**
- * Iterator combiner of KMeans task
- *
+ * Iterator reducer of KMeans task
+ * 
  * @version 1.0
  */
-public class KCombiner extends Reducer<IntWritable, DoubleWritable, IntWritable, DoubleWritable> {
+public class KIteratorReducer extends Reducer<IntWritable, DoubleWritable, IntWritable, DoubleWritable> {
 	/**
-	 * Setup the combiner
+	 * Setup the reducer
 	 * 
 	 * @param context
 	 * 		The context of the task
@@ -25,15 +25,15 @@ public class KCombiner extends Reducer<IntWritable, DoubleWritable, IntWritable,
 	}
 	
 	/**
-	 * Reduce function of the combiner
+	 * The reduce function of the reducer
 	 * 
 	 * @throws IOException
 	 * @throws InterruptedException
 	 * 
 	 * @param key
-	 * 		The key -> Id of the nearest center
-	 * @param value
-	 * 		The values -> A list of all the points that are attached to this cluster
+	 * 		The key -> Nearest center
+	 * @param values
+	 * 		The values -> A list of all points that are attached to this cluster
 	 * @param context
 	 * 		The context of the task
 	 */
@@ -53,7 +53,7 @@ public class KCombiner extends Reducer<IntWritable, DoubleWritable, IntWritable,
 	}
 	
 	/**
-	 * Cleanup the combiner
+	 * Cleanup the reducer
 	 * 
 	 * @param context
 	 * 		The context of the task

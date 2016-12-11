@@ -14,7 +14,7 @@ import org.apache.hadoop.mapreduce.Mapper;
  * 
  * @version 1.0
  */
-public class KMapper extends Mapper<LongWritable, ArrayList<String>, IntWritable, DoubleWritable> {
+public class KIteratorMapper extends Mapper<LongWritable, ArrayList<String>, IntWritable, DoubleWritable> {
 	
 	private int clusterNumber = 0;
 	private int columnNumber = 0;
