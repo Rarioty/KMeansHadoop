@@ -2,11 +2,13 @@ package main.java;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.DoubleWritable;
 import org.apache.hadoop.io.IntWritable;
-import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.lib.input.TextInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.TextOutputFormat;
+
+import main.java.format.CSVInputFormat;
 
 public class App
 {
@@ -61,10 +63,20 @@ public class App
 		// Create configuration
 		Configuration conf = new Configuration();
 		
+		// Settings of configuration
+		conf.setInt("clusterNumber", clusterNumber);
+		conf.setInt("columnNumber", columnNumber);
+		
 		// Declare the job
 		Job job = Job.getInstance(conf, "K-Means");
 		job.setNumReduceTasks(1);
 		job.setJarByClass(App.class);
+		
+		/*****
+		 * Formats
+		 *****/
+		job.setInputFormatClass(CSVInputFormat.class);
+		job.setOutputFormatClass(TextOutputFormat.class);
 		
 		/*****
 		 * Mapper
@@ -74,8 +86,8 @@ public class App
 		/****
 		 * Map output
 		 ****/
-		job.setMapOutputKeyClass(Text.class);
-		job.setMapOutputValueClass(IntWritable.class);
+		job.setMapOutputKeyClass(IntWritable.class);
+		job.setMapOutputValueClass(DoubleWritable.class);
 		
 		/*****
 		 * Combiner
@@ -90,20 +102,14 @@ public class App
 		/*****
 		 * Final output
 		 *****/
-		job.setOutputKeyClass(Text.class);
-		job.setOutputValueClass(IntWritable.class);
+		job.setOutputKeyClass(IntWritable.class);
+		job.setOutputValueClass(DoubleWritable.class);
 		
 		/*****
 		 * Paths
 		 *****/
 		TextInputFormat.addInputPath(job, new Path(inputPath));
 		TextOutputFormat.setOutputPath(job, new Path(outputPath));
-		
-		/*****
-		 * Formats
-		 *****/
-		job.setInputFormatClass(TextInputFormat.class);
-		job.setOutputFormatClass(TextOutputFormat.class);
 		
 		job.waitForCompletion(true);
 	}
