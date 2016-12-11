@@ -10,8 +10,19 @@ import org.apache.hadoop.mapreduce.lib.output.TextOutputFormat;
 
 import main.java.format.CSVInputFormat;
 
+/**
+ * Main class for the program
+ *
+ * @version 1.0
+ */
 public class App
 {
+	/**
+	 * Print the usage in the stdout
+	 * 
+	 * @param args
+	 * 		Arguments pass to the program
+	 */
 	public static void usage(String[] args){
 		System.out.println("Usage: App inputPath outputPath k c");
 		System.out.println("\tinputPath: Filepath of the input csv file");
@@ -20,6 +31,14 @@ public class App
 		System.out.println("\tc: Column in the file to use");
 	}
 	
+	/**
+	 * Main driver of the hadoop task
+	 * 
+	 * @throws Exception
+	 * 
+	 * @param args
+	 * 		Arguments pass to the program
+	 */
 	public static void main( String[] args ) throws Exception {
 		///// Parse arguments
 		if (args.length < 4)
@@ -111,6 +130,9 @@ public class App
 		TextInputFormat.addInputPath(job, new Path(inputPath));
 		TextOutputFormat.setOutputPath(job, new Path(outputPath));
 		
+		/*****
+		 * Launch and wait
+		 ****/
 		job.waitForCompletion(true);
 	}
 }

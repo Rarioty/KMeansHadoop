@@ -9,12 +9,23 @@ import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.mapreduce.Mapper;
 
+/**
+ * Iterator mapper for the KMeans task
+ * 
+ * @version 1.0
+ */
 public class KMapper extends Mapper<LongWritable, ArrayList<String>, IntWritable, DoubleWritable> {
 	
 	private int clusterNumber = 0;
 	private int columnNumber = 0;
 	private Configuration conf = null;
 	
+	/**
+	 * Setup the mapper
+	 * 
+	 * @param context
+	 * 		Context of the task
+	 */
 	@Override
 	public void setup(Context context) {
 		conf = context.getConfiguration();
@@ -22,6 +33,14 @@ public class KMapper extends Mapper<LongWritable, ArrayList<String>, IntWritable
 		columnNumber = conf.getInt("columnNumber", 0);
 	}
 	
+	/**
+	 * Return the nearest center of a value
+	 * 
+	 * @param value
+	 * 		We want to find the nearest center of this value
+	 * 
+	 * @return Nearest center
+	 */
 	private int getNearestCenter(Double value) {
 		int nearestCenter = 0;
 		double actual;
@@ -40,6 +59,19 @@ public class KMapper extends Mapper<LongWritable, ArrayList<String>, IntWritable
 		return nearestCenter;
 	}
 	
+	/**
+	 * The map function of the mapper
+	 * 
+	 * @throws IOException
+	 * @throws InterruptedException
+	 * 
+	 * @param key
+	 * 		The key -> Line of the file
+	 * @param value
+	 * 		The value -> List of all values without commas
+	 * @param context
+	 * 		The context of the task
+	 */
 	@Override
 	public void map(LongWritable key, ArrayList<String> value, Context context) throws IOException, InterruptedException {
 		// Get double value
@@ -68,6 +100,12 @@ public class KMapper extends Mapper<LongWritable, ArrayList<String>, IntWritable
 		context.write(new IntWritable(nearestCenter), new DoubleWritable(point));
 	}
 	
+	/**
+	 * Cleanup the mapper
+	 * 
+	 * @param context
+	 * 		The context of the task
+	 */
 	@Override
 	public void cleanup(Context context) {
 		
