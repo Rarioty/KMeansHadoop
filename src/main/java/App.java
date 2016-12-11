@@ -17,6 +17,8 @@ import main.java.format.CSVInputFormat;
  */
 public class App
 {
+	private static final double deltaConverged = 0.01;
+	
 	/**
 	 * Print the usage in the stdout
 	 * 
@@ -48,9 +50,14 @@ public class App
 		}
 		
 		String inputPath = args[0];
-		String outputPath = args[1];
+		String initialOutput = args[1];
+		String outputPath;
 		int clusterNumber = 0;
 		int columnNumber = 0;
+		int nbIteration = 0;
+		boolean jobDone = false;
+		Job job = null;
+		Double centers[];
 		
 		try {
 			clusterNumber = Integer.parseInt(args[2]);
@@ -71,10 +78,16 @@ public class App
 		}
 		///// End parsing
 		
+		centers = new Double[clusterNumber];
+		for (int i = 0; i < clusterNumber; ++i)
+		{
+			centers[i] = 10.0 * i;
+		}
+		
 		System.out.println("=== K-Means algorithm for hadoop ===");
 		System.out.println("Arguments:");
 		System.out.println("\tinputPath: \t" + inputPath);
-		System.out.println("\toutputPath: \t" + outputPath);
+		System.out.println("\toutputPath: \t" + initialOutput);
 		System.out.println("\tnumber of clusters: \t" + clusterNumber);
 		System.out.println("\tnumber of the column: \t" + columnNumber);
 		System.out.println("");
@@ -85,55 +98,95 @@ public class App
 		// Settings of configuration
 		conf.setInt("clusterNumber", clusterNumber);
 		conf.setInt("columnNumber", columnNumber);
-		
-		// Declare the job
-		Job job = Job.getInstance(conf, "K-Means");
-		job.setNumReduceTasks(1);
-		job.setJarByClass(App.class);
-		
-		/*****
-		 * Formats
-		 *****/
-		job.setInputFormatClass(CSVInputFormat.class);
-		job.setOutputFormatClass(TextOutputFormat.class);
-		
-		/*****
-		 * Mapper
-		 *****/
-		job.setMapperClass(KIteratorMapper.class);
-		
-		/****
-		 * Map output
-		 ****/
-		job.setMapOutputKeyClass(IntWritable.class);
-		job.setMapOutputValueClass(DoubleWritable.class);
-		
-		/*****
-		 * Combiner
-		 *****/
-		job.setCombinerClass(KIteratorCombiner.class);
-		
-		/****
-		 * Reducer
-		 ****/
-		job.setReducerClass(KIteratorReducer.class);
-		
-		/*****
-		 * Final output
-		 *****/
-		job.setOutputKeyClass(IntWritable.class);
-		job.setOutputValueClass(DoubleWritable.class);
-		
-		/*****
-		 * Paths
-		 *****/
-		TextInputFormat.addInputPath(job, new Path(inputPath));
-		TextOutputFormat.setOutputPath(job, new Path(outputPath));
-		
-		/*****
-		 * Launch and wait
-		 ****/
-		job.waitForCompletion(true);
+
+		while (!jobDone)
+		{
+			outputPath = initialOutput + System.nanoTime();
+			
+			for (int i = 0; i < clusterNumber; ++i)
+			{
+				conf.setDouble("center" + i, centers[i]);
+			}
+			
+			// Declare the job
+			job = Job.getInstance(conf, "K-Means iteration " + nbIteration);
+			job.setNumReduceTasks(1);
+			job.setJarByClass(App.class);
+			
+			/*****
+			 * Formats
+			 *****/
+			job.setInputFormatClass(CSVInputFormat.class);
+			job.setOutputFormatClass(TextOutputFormat.class);
+			
+			/*****
+			 * Mapper
+			 *****/
+			job.setMapperClass(KIteratorMapper.class);
+			
+			/****
+			 * Map output
+			 ****/
+			job.setMapOutputKeyClass(IntWritable.class);
+			job.setMapOutputValueClass(DoubleWritable.class);
+			
+			/*****
+			 * Combiner
+			 *****/
+			job.setCombinerClass(KIteratorCombiner.class);
+			
+			/****
+			 * Reducer
+			 ****/
+			job.setReducerClass(KIteratorReducer.class);
+			
+			/*****
+			 * Final output
+			 *****/
+			job.setOutputKeyClass(IntWritable.class);
+			job.setOutputValueClass(DoubleWritable.class);
+			
+			/*****
+			 * Paths
+			 *****/
+			System.out.println("KMeans iteration " + nbIteration + ":");
+			System.out.println("Input: " + inputPath);
+			System.out.println("Output: " + outputPath);
+			TextInputFormat.addInputPath(job, new Path(inputPath));
+			TextOutputFormat.setOutputPath(job, new Path(outputPath));
+			
+			/*****
+			 * Launch and wait
+			 ****/
+			job.waitForCompletion(true);
+			
+			Double newCenters[] = new Double[clusterNumber];
+			System.out.println("New centers:");
+			for (int i = 0; i < clusterNumber; ++i)
+			{
+				// Convert back long to double :D
+				newCenters[i] = Double.longBitsToDouble(job.getCounters().findCounter("centers", "" + i).getValue());
+				System.out.println("\t" + i + ": " + newCenters[i]);
+			}
+			System.out.println("");
+			
+			// Test if centers converged
+			boolean converged = true;
+			for (int i = 0; i < clusterNumber; ++i)
+			{
+				if (converged && Math.abs(centers[i] - newCenters[i]) > deltaConverged)
+				{
+					System.out.println("Divergence found for cluster " + i);
+					System.out.println("center: " + centers[i] + ", newCenter: " + newCenters[i]);
+					System.out.println("Difference: " + Math.abs(centers[i] - newCenters[i]));
+					converged = false;
+				}
+				centers[i] = newCenters[i];
+			}
+			
+			nbIteration++;
+			jobDone = converged;
+		}
 	}
 }
 

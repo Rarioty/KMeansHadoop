@@ -49,7 +49,13 @@ public class KIteratorReducer extends Reducer<IntWritable, DoubleWritable, IntWr
 			numElems++;
 		}
 		
-		context.write(key, new DoubleWritable(sum / numElems));
+		Double average = sum/numElems;
+		
+		// Encode double value into long
+		// We can because both of them are 64 bits long ! :D
+		context.getCounter("centers", "" + key.get()).setValue(Double.doubleToLongBits(average));
+		
+		context.write(key, new DoubleWritable(average));
 	}
 	
 	/**

@@ -86,16 +86,8 @@ public class KIteratorMapper extends Mapper<LongWritable, ArrayList<String>, Int
 			return;
 		}
 		
-		if (key.get() < clusterNumber)
-		{
-			conf.setDouble("center" + key.get(), point);
-			nearestCenter = (int) key.get();
-		}
-		else
-		{
-			// Search nearest center !
-			nearestCenter = getNearestCenter(point);
-		}
+		// Search nearest center !
+		nearestCenter = getNearestCenter(point);
 		
 		context.write(new IntWritable(nearestCenter), new DoubleWritable(point));
 	}
