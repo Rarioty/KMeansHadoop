@@ -4,11 +4,13 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.DoubleWritable;
 import org.apache.hadoop.io.IntWritable;
+import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.lib.input.TextInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.TextOutputFormat;
 
 import main.java.format.CSVInputFormat;
+import main.java.format.CSVOutputFormat;
 
 /**
  * Main class for the program
@@ -98,10 +100,11 @@ public class App
 		// Settings of configuration
 		conf.setInt("clusterNumber", clusterNumber);
 		conf.setInt("columnNumber", columnNumber);
+		conf.set("outputName", initialOutput);
 
 		while (!jobDone)
 		{
-			outputPath = initialOutput + System.nanoTime();
+			outputPath = initialOutput + "_" + System.nanoTime();
 			
 			for (int i = 0; i < clusterNumber; ++i)
 			{
@@ -187,6 +190,57 @@ public class App
 			nbIteration++;
 			jobDone = converged;
 		}
+		
+		// Iterating done !
+		
+		// Now we have to save the data !
+		job = Job.getInstance(conf, "K-Means final");
+		job.setNumReduceTasks(1);
+		job.setJarByClass(App.class);
+		
+		/*****
+		 * Formats
+		 *****/
+		job.setInputFormatClass(CSVInputFormat.class);
+		job.setOutputFormatClass(CSVOutputFormat.class);
+		
+		/*****
+		 * Mapper
+		 *****/
+		job.setMapperClass(KMapper.class);
+		
+		/****
+		 * Map output
+		 ****/
+		job.setMapOutputKeyClass(IntWritable.class);
+		job.setMapOutputValueClass(Text.class);
+		
+		/*****
+		 * Combiner
+		 *****/
+		job.setCombinerClass(KCombiner.class);
+		
+		/****
+		 * Reducer
+		 ****/
+		job.setReducerClass(KReducer.class);
+		
+		/*****
+		 * Final output
+		 *****/
+		job.setOutputKeyClass(IntWritable.class);
+		job.setOutputValueClass(Text.class);
+		
+		/*****
+		 * Paths
+		 *****/
+		CSVInputFormat.addInputPath(job, new Path(inputPath));
+		CSVOutputFormat.setOutputPath(job, new Path(initialOutput));
+		
+		/*****
+		 * Launch and wait
+		 ****/
+		job.waitForCompletion(true);
 	}
 }
 
