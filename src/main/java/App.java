@@ -1,6 +1,10 @@
 package main.java;
 
+import java.io.IOException;
+
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FSDataInputStream;
+import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.DoubleWritable;
 import org.apache.hadoop.io.IntWritable;
@@ -33,6 +37,68 @@ public class App
 		System.out.println("\toutputPath: Filepath of the output csv file");
 		System.out.println("\tk: Number of clusters to use");
 		System.out.println("\tc: Column in the file to use");
+	}
+	
+	/**
+	 * This function allow us to get the first n lines of the input file
+	 * in order to get the centers. If there is less lines that required clusters,
+	 * we return the right amount of new clusters which is the number of lines
+	 * 
+	 * @throws IOException
+	 * 
+	 * @param input
+	 * 		Input filepath
+	 * @param clusterNumber
+	 * 		Required number of clusters
+	 * @param columnNumber
+	 * 		Required column number to parse
+	 * 
+	 * @return An array full of the readed centers
+	 */
+	private static Double[] readCenters(String input, int clusterNumber, int columnNumber) throws IOException {
+		int i = 0;
+		Configuration conf = new Configuration();
+		Double centers[] = new Double[clusterNumber];
+		FileSystem fs = FileSystem.get(conf);
+		Path filepath = new Path(conf.get("fs.defaultFS") + "/" + input);
+		
+		FSDataInputStream stream = fs.open(filepath);
+		
+		// For each cluster asked
+		for (i = 0; i < clusterNumber; ++i)
+		{
+			// Read a line
+			@SuppressWarnings("deprecation")
+			String line = stream.readLine();
+			// Dismiss if we already ended the file
+			if (line == null)
+				break;
+			
+			// Split the csv values
+			String[] values = line.split(",");
+			// Check if the columnNumber is available
+			if (values.length > columnNumber)
+			{
+				// Finally try to convert to a double !
+				try {
+					centers[i] = Double.valueOf(values[columnNumber]);	
+				} catch (Exception e) {
+					System.out.print(e.getMessage());
+					break;
+				}
+			}
+			else
+				break;
+		}
+		
+		// In case we ask for 10 clusters but with only 4 lines for example :/
+		Double returned[] = new Double[i];
+		for (int j = 0; j < i; ++j)
+		{
+			returned[j] = centers[j];
+		}
+		
+		return returned;
 	}
 	
 	/**
@@ -80,12 +146,6 @@ public class App
 		}
 		///// End parsing
 		
-		centers = new Double[clusterNumber];
-		for (int i = 0; i < clusterNumber; ++i)
-		{
-			centers[i] = 10.0 * i;
-		}
-		
 		System.out.println("=== K-Means algorithm for hadoop ===");
 		System.out.println("Arguments:");
 		System.out.println("\tinputPath: \t" + inputPath);
@@ -97,19 +157,29 @@ public class App
 		// Create configuration
 		Configuration conf = new Configuration();
 		
-		// Settings of configuration
+		// Reads centers in the input file
+		centers = readCenters(inputPath, clusterNumber, columnNumber);
+		// Redefine the number of clusters with the number of lines in the file
+		clusterNumber = centers.length;
+		
+		// Show all centers
+		System.out.println("" + clusterNumber + " centers read:");
+		for (int i = 0; i < clusterNumber; ++i)
+		{
+			System.out.println("\t- center " + i + ": " + centers[i]);
+			conf.setDouble("center" + i,  centers[i]);
+		}
+		
+		// Setup the configuration
 		conf.setInt("clusterNumber", clusterNumber);
 		conf.setInt("columnNumber", columnNumber);
 		conf.set("outputName", initialOutput);
 
+		// Launch each iteration
 		while (!jobDone)
 		{
+			// Generate new outputPath
 			outputPath = initialOutput + "_" + System.nanoTime();
-			
-			for (int i = 0; i < clusterNumber; ++i)
-			{
-				conf.setDouble("center" + i, centers[i]);
-			}
 			
 			// Declare the job
 			job = Job.getInstance(conf, "K-Means iteration " + nbIteration);
@@ -163,6 +233,7 @@ public class App
 			 ****/
 			job.waitForCompletion(true);
 			
+			// Read all new generated centers
 			Double newCenters[] = new Double[clusterNumber];
 			System.out.println("New centers:");
 			for (int i = 0; i < clusterNumber; ++i)
@@ -185,8 +256,11 @@ public class App
 					converged = false;
 				}
 				centers[i] = newCenters[i];
+				conf.setDouble("center" + i, centers[i]);
 			}
 			
+			// Increment the iteration number
+			// and break the loop if we converged
 			nbIteration++;
 			jobDone = converged;
 		}
@@ -241,6 +315,8 @@ public class App
 		 * Launch and wait
 		 ****/
 		job.waitForCompletion(true);
+		
+		// App done ! :D
 	}
 }
 
