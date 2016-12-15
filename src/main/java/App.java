@@ -6,7 +6,6 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.io.DoubleWritable;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Job;
@@ -15,6 +14,7 @@ import org.apache.hadoop.mapreduce.lib.output.TextOutputFormat;
 
 import main.java.format.CSVInputFormat;
 import main.java.format.CSVOutputFormat;
+import main.java.writables.PointWritable;
 
 /**
  * Main class for the program
@@ -32,11 +32,36 @@ public class App
 	 * 		Arguments pass to the program
 	 */
 	public static void usage(String[] args){
-		System.out.println("Usage: App inputPath outputPath k c");
+		System.out.println("Usage: App inputPath outputPath k [c...]");
 		System.out.println("\tinputPath: Filepath of the input csv file");
 		System.out.println("\toutputPath: Filepath of the output csv file");
 		System.out.println("\tk: Number of clusters to use");
-		System.out.println("\tc: Column in the file to use");
+		System.out.println("\tc: Columns in the file to use (multiple values)");
+	}
+	
+	/**
+	 * Critical function to compute distance between two n-dimensionals points.
+	 * The distance is squared to avoir dump sqrt slowness
+	 * 
+	 * @param first
+	 * 		First point
+	 * @param second
+	 * 		Second point
+	 * @param columnNumber
+	 * 		Number of dimensions
+	 * 
+	 * @return Distance between this two points
+	 */
+	public static Double squaredDistance(Double[] first, Double[] second, int columnNumber)
+	{
+		Double distance = 0.0;
+		
+		for (int i = 0; i < columnNumber; ++i)
+		{
+			distance += Math.abs(first[i] - second[i]);
+		}
+		
+		return distance;
 	}
 	
 	/**
@@ -55,10 +80,10 @@ public class App
 	 * 
 	 * @return An array full of the readed centers
 	 */
-	private static Double[] readCenters(String input, int clusterNumber, int columnNumber) throws IOException {
+	private static Double[][] readCenters(String input, int clusterNumber, int columnNumber, int columns[]) throws IOException {
 		int i = 0;
 		Configuration conf = new Configuration();
-		Double centers[] = new Double[clusterNumber];
+		Double centers[][] = new Double[clusterNumber][];
 		FileSystem fs = FileSystem.get(conf);
 		Path filepath = new Path(conf.get("fs.defaultFS") + "/" + input);
 		
@@ -67,6 +92,8 @@ public class App
 		// For each cluster asked
 		for (i = 0; i < clusterNumber; ++i)
 		{
+			centers[i] = new Double[columnNumber];
+			
 			// Read a line
 			@SuppressWarnings("deprecation")
 			String line = stream.readLine();
@@ -77,25 +104,36 @@ public class App
 			// Split the csv values
 			String[] values = line.split(",");
 			// Check if the columnNumber is available
-			if (values.length > columnNumber)
+			if (values.length >= columnNumber)
 			{
-				// Finally try to convert to a double !
-				try {
-					centers[i] = Double.valueOf(values[columnNumber]);	
-				} catch (Exception e) {
-					System.out.print(e.getMessage());
-					break;
+				// For each columns !
+				for (int j = 0; j < columnNumber; ++j)
+				{
+					// Finally try to convert to a double !
+					try {
+						centers[i][j] = Double.valueOf(values[columns[j]]);	
+					} catch (Exception e) {
+						System.out.print(e.getMessage());
+						e.printStackTrace(System.out);
+						break;
+					}
 				}
 			}
 			else
+			{
 				break;
+			}
 		}
 		
 		// In case we ask for 10 clusters but with only 4 lines for example :/
-		Double returned[] = new Double[i];
+		Double returned[][] = new Double[i][];
 		for (int j = 0; j < i; ++j)
 		{
-			returned[j] = centers[j];
+			returned[j] = new Double[columnNumber];
+			for (int k = 0; k < columnNumber; ++k)
+			{
+				returned[j][k] = centers[j][k];
+			}
 		}
 		
 		return returned;
@@ -120,12 +158,13 @@ public class App
 		String inputPath = args[0];
 		String initialOutput = args[1];
 		String outputPath;
+		int columnNumber = args.length - 3;
 		int clusterNumber = 0;
-		int columnNumber = 0;
 		int nbIteration = 0;
 		boolean jobDone = false;
 		Job job = null;
-		Double centers[];
+		Double centers[][];
+		int columns[];
 		
 		try {
 			clusterNumber = Integer.parseInt(args[2]);
@@ -136,13 +175,18 @@ public class App
 			return;
 		}
 		
-		try {
-			columnNumber = Integer.parseInt(args[3]);
-		}
-		catch(NumberFormatException ex) {
-			System.out.println("[Error] Can't parse column number !");
-			usage(args);
-			return;
+		// Try to parse all columns
+		columns = new int[columnNumber];
+		for (int i = 0; i < columnNumber; ++i)
+		{
+			try {
+				columns[i] = Integer.parseInt(args[3+i]);
+			}
+			catch(NumberFormatException ex) {
+				System.out.println("[Error] Can't parse column number !");
+				usage(args);
+				return;
+			}
 		}
 		///// End parsing
 		
@@ -151,23 +195,36 @@ public class App
 		System.out.println("\tinputPath: \t" + inputPath);
 		System.out.println("\toutputPath: \t" + initialOutput);
 		System.out.println("\tnumber of clusters: \t" + clusterNumber);
-		System.out.println("\tnumber of the column: \t" + columnNumber);
-		System.out.println("");
+		System.out.println("\tnumber of columns: \t" + columnNumber);
 		
 		// Create configuration
 		Configuration conf = new Configuration();
 		
 		// Reads centers in the input file
-		centers = readCenters(inputPath, clusterNumber, columnNumber);
+		centers = readCenters(inputPath, clusterNumber, columnNumber, columns);
 		// Redefine the number of clusters with the number of lines in the file
 		clusterNumber = centers.length;
+		
+		// Show all columns
+		System.out.print("\tcolumns: \t");
+		for (int i = 0; i < columnNumber; ++i)
+		{
+			System.out.print(columns[i] + " ");
+			conf.setInt("column" + i, columns[i]);
+		}
+		System.out.println("\n");
 		
 		// Show all centers
 		System.out.println("" + clusterNumber + " centers read:");
 		for (int i = 0; i < clusterNumber; ++i)
 		{
-			System.out.println("\t- center " + i + ": " + centers[i]);
-			conf.setDouble("center" + i,  centers[i]);
+			System.out.print("\t- center " + i + ": ");
+			for (int j = 0; j < columnNumber; ++j)
+			{
+				System.out.print(centers[i][j] + " ");
+				conf.setDouble("center" + i + "_" + j,  centers[i][j]);
+			}
+			System.out.println("");
 		}
 		
 		// Setup the configuration
@@ -201,7 +258,7 @@ public class App
 			 * Map output
 			 ****/
 			job.setMapOutputKeyClass(IntWritable.class);
-			job.setMapOutputValueClass(DoubleWritable.class);
+			job.setMapOutputValueClass(PointWritable.class);
 			
 			/*****
 			 * Combiner
@@ -217,7 +274,7 @@ public class App
 			 * Final output
 			 *****/
 			job.setOutputKeyClass(IntWritable.class);
-			job.setOutputValueClass(DoubleWritable.class);
+			job.setOutputValueClass(PointWritable.class);
 			
 			/*****
 			 * Paths
@@ -234,13 +291,19 @@ public class App
 			job.waitForCompletion(true);
 			
 			// Read all new generated centers
-			Double newCenters[] = new Double[clusterNumber];
+			Double newCenters[][] = new Double[clusterNumber][];
 			System.out.println("New centers:");
 			for (int i = 0; i < clusterNumber; ++i)
 			{
-				// Convert back long to double :D
-				newCenters[i] = Double.longBitsToDouble(job.getCounters().findCounter("centers", "" + i).getValue());
-				System.out.println("\t" + i + ": " + newCenters[i]);
+				newCenters[i] = new Double[columnNumber];
+
+				System.out.print("\t" + i + ": ");
+				for (int j = 0; j < columnNumber; ++j)
+				{
+					// Convert back long to double :D
+					newCenters[i][j] = Double.longBitsToDouble(job.getCounters().findCounter("centers", "" + i + "_" + j).getValue());
+					System.out.print(newCenters[i][j] + " ");
+				}
 			}
 			System.out.println("");
 			
@@ -248,15 +311,17 @@ public class App
 			boolean converged = true;
 			for (int i = 0; i < clusterNumber; ++i)
 			{
-				if (converged && Math.abs(centers[i] - newCenters[i]) > deltaConverged)
+				if (converged && App.squaredDistance(centers[i], newCenters[i], columnNumber) > deltaConverged)
 				{
 					System.out.println("Divergence found for cluster " + i);
-					System.out.println("center: " + centers[i] + ", newCenter: " + newCenters[i]);
-					System.out.println("Difference: " + Math.abs(centers[i] - newCenters[i]));
+					System.out.println("Difference: " + App.squaredDistance(centers[i], newCenters[i], columnNumber));
 					converged = false;
 				}
 				centers[i] = newCenters[i];
-				conf.setDouble("center" + i, centers[i]);
+				for (int j = 0; j < columnNumber; ++j)
+				{
+					conf.setDouble("center" + i + "_" + j, centers[i][j]);
+				}
 			}
 			
 			// Increment the iteration number

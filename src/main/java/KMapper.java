@@ -18,6 +18,8 @@ public class KMapper extends Mapper<LongWritable, ArrayList<String>, IntWritable
 	private int clusterNumber = 0;
 	private int columnNumber = 0;
 	private Configuration conf = null;
+	private Double[][] centers;
+	private int[] columns;
 	
 	/**
 	 * Setup the mapper
@@ -30,6 +32,24 @@ public class KMapper extends Mapper<LongWritable, ArrayList<String>, IntWritable
 		conf = context.getConfiguration();
 		clusterNumber = conf.getInt("clusterNumber", 1);
 		columnNumber = conf.getInt("columnNumber", 0);
+		
+		// Generate all centers in memory
+		centers = new Double[clusterNumber][];
+		for (int i = 0; i < clusterNumber; ++i)
+		{
+			centers[i] = new Double[columnNumber];
+			for (int j = 0; j < columnNumber; ++j)
+			{
+				centers[i][j] = conf.getDouble("center" + i + "_" + j, 0.0);
+			}
+		}
+		
+		// Get all columns numbers
+		columns = new int[columnNumber];
+		for (int i = 0; i < columnNumber; ++i)
+		{
+			columns[i] = conf.getInt("column" + i, -1);
+		}
 	}
 	
 	/**
@@ -40,18 +60,18 @@ public class KMapper extends Mapper<LongWritable, ArrayList<String>, IntWritable
 	 * 
 	 * @return Nearest center
 	 */
-	private int getNearestCenter(Double value) {
+	private int getNearestCenter(Double[] value) {
 		int nearestCenter = 0;
 		double actual;
-		double min = Double.MAX_VALUE;
+		double minDistance = Double.MAX_VALUE;
 		
 		for (int i = 0; i < clusterNumber; ++i)
 		{
-			actual = conf.getDouble("center" + i, 0.0) - value;
-			if (Math.abs(actual) < Math.abs(min))
+			actual = App.squaredDistance(value, centers[i], columnNumber);
+			if (actual < minDistance)
 			{
 				nearestCenter = i;
-				min = actual;
+				minDistance = actual;
 			}
 		}
 		
@@ -73,12 +93,16 @@ public class KMapper extends Mapper<LongWritable, ArrayList<String>, IntWritable
 	 */
 	@Override
 	public void map(LongWritable key, ArrayList<String> value, Context context) throws IOException, InterruptedException {
+		
 		// Get double value
-		Double point = 0.0;
+		Double[] point = new Double[columnNumber];
 		int nearestCenter = 0;
 		
 		try {
-			point = Double.valueOf(value.get(columnNumber));
+			for (int i = 0; i < columnNumber; ++i)
+			{
+				point[i] = Double.valueOf(value.get(columns[i]));
+			}
 		}
 		catch(NumberFormatException ex) {
 			System.err.println("Error while parsing line " + key.get());
@@ -87,6 +111,7 @@ public class KMapper extends Mapper<LongWritable, ArrayList<String>, IntWritable
 		
 		// Search nearest center !
 		nearestCenter = getNearestCenter(point);
+		
 		context.write(new IntWritable(nearestCenter), new Text(String.join(",", value)));
 	}
 	

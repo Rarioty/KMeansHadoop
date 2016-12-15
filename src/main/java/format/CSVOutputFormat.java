@@ -65,6 +65,8 @@ public class CSVOutputFormat extends FileOutputFormat<IntWritable, Text> {
 		
 		fs.mkdirs(folder);
 		
-		return new Path(folder.toString() +  "/" + context.getConfiguration().get("outputName").split("/")[1] + ".csv");
+		String outputName = context.getConfiguration().get("outputName");
+		
+		return new Path(folder.toString() +  "/" + outputName.split("/")[outputName.split("/").length-1] + ".csv");
 	}
 }

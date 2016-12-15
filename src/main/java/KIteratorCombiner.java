@@ -3,16 +3,21 @@ package main.java;
 import java.io.IOException;
 import java.util.Iterator;
 
-import org.apache.hadoop.io.DoubleWritable;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.mapreduce.Reducer;
+
+import main.java.writables.PointWritable;
 
 /**
  * Iterator combiner of KMeans task
  *
  * @version 1.0
  */
-public class KIteratorCombiner extends Reducer<IntWritable, DoubleWritable, IntWritable, DoubleWritable> {
+public class KIteratorCombiner extends Reducer<IntWritable, PointWritable, IntWritable, PointWritable> {
+	private Configuration conf;
+	private int columnNumber = 0;
+	
 	/**
 	 * Setup the combiner
 	 * 
@@ -21,7 +26,8 @@ public class KIteratorCombiner extends Reducer<IntWritable, DoubleWritable, IntW
 	 */
 	@Override
 	public void setup(Context context) {
-		
+		conf = context.getConfiguration();
+		columnNumber = conf.getInt("columnNumber", 0);
 	}
 	
 	/**
@@ -38,18 +44,32 @@ public class KIteratorCombiner extends Reducer<IntWritable, DoubleWritable, IntW
 	 * 		The context of the task
 	 */
 	@Override
-	public void reduce(IntWritable key, Iterable<DoubleWritable> values, Context context) throws IOException, InterruptedException {
-		Double sum = 0.0;
+	public void reduce(IntWritable key, Iterable<PointWritable> values, Context context) throws IOException, InterruptedException {
+		Double[] sum = new Double[columnNumber];
 		int numElems = 0;
-		Iterator<DoubleWritable> it = values.iterator();
+		Iterator<PointWritable> it = values.iterator();
+		
+		for (int i = 0; i < columnNumber; ++i)
+		{
+			sum[i] = 0.0;
+		}
 		
 		while (it.hasNext())
 		{
-			sum += it.next().get();
+			PointWritable point = it.next();
+			for (int i = 0; i < columnNumber; ++i)
+			{
+				sum[i] += point.dimensions[i];
+			}
 			numElems++;
 		}
 		
-		context.write(key, new DoubleWritable(sum / numElems));
+		for (int i = 0; i < columnNumber; ++i)
+		{
+			sum[i] /= numElems;
+		}
+		
+		context.write(key, new PointWritable(columnNumber, sum));
 	}
 	
 	/**
