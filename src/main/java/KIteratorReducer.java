@@ -45,13 +45,27 @@ public class KIteratorReducer extends Reducer<IntWritable, PointWritable, IntWri
 	 */
 	@Override
 	public void reduce(IntWritable key, Iterable<PointWritable> values, Context context) throws IOException, InterruptedException {
-		Double[] sum = new Double[columnNumber];
+		Double[] averages = new Double[columnNumber];
 		int numElems = 0;
 		Iterator<PointWritable> it = values.iterator();
 		
+		// Initialization
 		for (int i = 0; i < columnNumber; ++i)
 		{
-			sum[i] = 0.0;
+			averages[i] = 0.0;
+		}
+		
+		// Do this one to avoid the divide by zero in the giant formula
+		if (it.hasNext())
+		{
+			PointWritable point = it.next();
+			for (int i = 0; i < columnNumber; ++i)
+			{
+				// This formula is here because of infinity when we sum up all the points...
+				// This line allow us to avoid the sum of all points but recursively update the average !
+				averages[i] = point.dimensions[i] / (numElems + point.weight);
+			}
+			numElems += point.weight;
 		}
 		
 		while (it.hasNext())
@@ -59,21 +73,21 @@ public class KIteratorReducer extends Reducer<IntWritable, PointWritable, IntWri
 			PointWritable point = it.next();
 			for (int i = 0; i < columnNumber; ++i)
 			{
-				sum[i] += point.dimensions[i];
+				// This formula is here because of infinity when we sum up all the points...
+				// This line allow us to avoid the sum of all points but recursively update the average !
+				averages[i] = 1 / (1 + (point.weight / numElems)) * averages[i] + (point.dimensions[i] / (numElems + point.weight));
 			}
-			numElems++;
+			numElems += point.weight;
 		}
 		
 		for (int i = 0; i < columnNumber; ++i)
 		{
-			sum[i] /= numElems;
-			
 			// Encode double value into long
 			// We can because both of them are 64 bits long ! :D
-			context.getCounter("centers", "" + key.get() + "_" + i).setValue(Double.doubleToLongBits(sum[i]));
+			context.getCounter("centers", "" + key.get() + "_" + i).setValue(Double.doubleToLongBits(averages[i]));
 		}
 		
-		context.write(key, new PointWritable(columnNumber, sum));
+		context.write(key, new PointWritable(columnNumber, averages, 1));
 	}
 	
 	/**

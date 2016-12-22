@@ -104,8 +104,7 @@ public class KIteratorMapper extends Mapper<LongWritable, ArrayList<String>, Int
 			{
 				point[i] = Double.valueOf(value.get(columns[i]));
 			}
-		}
-		catch(NumberFormatException ex) {
+		} catch(NumberFormatException ex) {
 			System.err.println("Error while parsing line " + key.get());
 			return;
 		}
@@ -113,7 +112,7 @@ public class KIteratorMapper extends Mapper<LongWritable, ArrayList<String>, Int
 		// Search nearest center !
 		nearestCenter = getNearestCenter(point);
 		
-		context.write(new IntWritable(nearestCenter), new PointWritable(columnNumber, point));
+		context.write(new IntWritable(nearestCenter), new PointWritable(columnNumber, point, 1));
 	}
 	
 	/**

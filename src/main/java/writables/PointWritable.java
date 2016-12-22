@@ -9,14 +9,14 @@ import org.apache.hadoop.io.Writable;
 public class PointWritable implements Writable {
 	public int nbDimensions;
 	public Double[] dimensions;
+	public int weight;
 	
 	public PointWritable() {
-		System.out.println("New point writable empty !");
 		nbDimensions = 1;
 		dimensions = new Double[1];
 	}
 	
-	public PointWritable(int column, Double init[]) {
+	public PointWritable(int column, Double init[], int weight) {
 		nbDimensions = column;
 		dimensions = new Double[column];
 		
@@ -24,6 +24,8 @@ public class PointWritable implements Writable {
 		{
 			dimensions[i] = init[i];
 		}
+		
+		this.weight = weight;
 	}
 
 	@Override
@@ -34,6 +36,7 @@ public class PointWritable implements Writable {
 		{
 			dimensions[i] = in.readDouble();
 		}
+		weight = in.readInt();
 	}
 
 	@Override
@@ -43,6 +46,7 @@ public class PointWritable implements Writable {
 		{
 			out.writeDouble(dimensions[i]);
 		}
+		out.writeInt(weight);
 	}
 
 	@Override

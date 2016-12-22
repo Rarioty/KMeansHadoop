@@ -23,7 +23,7 @@ import main.java.writables.PointWritable;
  */
 public class App
 {
-	private static final double deltaConverged = 0.01;
+	private static final double DELTA_CONVERGED = 0.01;
 	
 	/**
 	 * Print the usage in the stdout
@@ -165,6 +165,8 @@ public class App
 		Job job = null;
 		Double centers[][];
 		int columns[];
+		long startIteration;
+		long endIteration;
 		
 		try {
 			clusterNumber = Integer.parseInt(args[2]);
@@ -218,13 +220,13 @@ public class App
 		System.out.println("" + clusterNumber + " centers read:");
 		for (int i = 0; i < clusterNumber; ++i)
 		{
-			System.out.print("\t- center " + i + ": ");
+			System.out.print("\t- center " + i + ": (");
 			for (int j = 0; j < columnNumber; ++j)
 			{
 				System.out.print(centers[i][j] + " ");
 				conf.setDouble("center" + i + "_" + j,  centers[i][j]);
 			}
-			System.out.println("");
+			System.out.println(")");
 		}
 		
 		// Setup the configuration
@@ -288,7 +290,11 @@ public class App
 			/*****
 			 * Launch and wait
 			 ****/
+			startIteration = System.nanoTime();
 			job.waitForCompletion(true);
+			endIteration = System.nanoTime();
+			
+			System.out.println("This iteration took " + (endIteration - startIteration) / 1000000 + " milliseconds");
 			
 			// Read all new generated centers
 			Double newCenters[][] = new Double[clusterNumber][];
@@ -311,7 +317,7 @@ public class App
 			boolean converged = true;
 			for (int i = 0; i < clusterNumber; ++i)
 			{
-				if (converged && App.squaredDistance(centers[i], newCenters[i], columnNumber) > deltaConverged)
+				if (converged && App.squaredDistance(centers[i], newCenters[i], columnNumber) > DELTA_CONVERGED)
 				{
 					System.out.println("Divergence found for cluster " + i);
 					System.out.println("Difference: " + App.squaredDistance(centers[i], newCenters[i], columnNumber));

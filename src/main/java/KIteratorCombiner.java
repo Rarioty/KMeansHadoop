@@ -61,15 +61,10 @@ public class KIteratorCombiner extends Reducer<IntWritable, PointWritable, IntWr
 			{
 				sum[i] += point.dimensions[i];
 			}
-			numElems++;
+			numElems += point.weight;
 		}
 		
-		for (int i = 0; i < columnNumber; ++i)
-		{
-			sum[i] /= numElems;
-		}
-		
-		context.write(key, new PointWritable(columnNumber, sum));
+		context.write(key, new PointWritable(columnNumber, sum , numElems));
 	}
 	
 	/**
