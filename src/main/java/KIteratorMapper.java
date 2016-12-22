@@ -2,6 +2,7 @@ package main.java;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Vector;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.io.IntWritable;
@@ -22,6 +23,8 @@ public class KIteratorMapper extends Mapper<LongWritable, ArrayList<String>, Int
 	private Configuration conf = null;
 	private Double[][] centers;
 	private int[] columns;
+	private int hierarchicalLevel;
+	private Vector<Integer> previousClusters;
 	
 	/**
 	 * Setup the mapper
@@ -51,6 +54,13 @@ public class KIteratorMapper extends Mapper<LongWritable, ArrayList<String>, Int
 		for (int i = 0; i < columnNumber; ++i)
 		{
 			columns[i] = conf.getInt("column" + i, -1);
+		}
+		
+		hierarchicalLevel = conf.getInt("hierarchicalLevel", -1);
+		previousClusters = new Vector<Integer>();
+		for (int i = 0; i < hierarchicalLevel; ++i)
+		{
+			previousClusters.add(conf.getInt("cluster" + i, -1));
 		}
 	}
 	
@@ -98,6 +108,13 @@ public class KIteratorMapper extends Mapper<LongWritable, ArrayList<String>, Int
 		// Get double value
 		Double[] point = new Double[columnNumber];
 		int nearestCenter = 0;
+		
+		// Test if the line has to be handle
+		for (int i = 0; i < hierarchicalLevel; ++i)
+		{
+			if (previousClusters.get(i) != Integer.valueOf(value.get(value.size()-hierarchicalLevel + i)))
+				return;
+		}
 		
 		try {
 			for (int i = 0; i < columnNumber; ++i)

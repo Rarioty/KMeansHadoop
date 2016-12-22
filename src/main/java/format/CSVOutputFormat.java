@@ -60,7 +60,7 @@ public class CSVOutputFormat extends FileOutputFormat<IntWritable, Text> {
 	public Path getDefaultWorkFile(TaskAttemptContext context, String extension) throws IOException {
 		FileOutputCommitter committer = (FileOutputCommitter)super.getOutputCommitter(context);
 		Path path = committer.getWorkPath();
-		Path folder = new Path(path.toString().split("_temporary")[0] + getUniqueFile(context, "folder", ""));
+		Path folder = new Path(path.toString().split("_temporary")[0]);
 		FileSystem fs = path.getFileSystem(context.getConfiguration());
 		
 		fs.mkdirs(folder);

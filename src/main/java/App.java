@@ -1,6 +1,7 @@
 package main.java;
 
 import java.io.IOException;
+import java.util.Vector;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataInputStream;
@@ -32,10 +33,11 @@ public class App
 	 * 		Arguments pass to the program
 	 */
 	public static void usage(String[] args){
-		System.out.println("Usage: App inputPath outputPath k [c...]");
+		System.out.println("Usage: App inputPath outputPath k N [c...]");
 		System.out.println("\tinputPath: Filepath of the input csv file");
 		System.out.println("\toutputPath: Filepath of the output csv file");
 		System.out.println("\tk: Number of clusters to use");
+		System.out.println("\tN: Hierarchical level wanted");
 		System.out.println("\tc: Columns in the file to use (multiple values)");
 	}
 	
@@ -139,65 +141,27 @@ public class App
 		return returned;
 	}
 	
-	/**
-	 * Main driver of the hadoop task
-	 * 
-	 * @throws Exception
-	 * 
-	 * @param args
-	 * 		Arguments pass to the program
-	 */
-	public static void main( String[] args ) throws Exception {
-		///// Parse arguments
-		if (args.length < 4)
-		{
-			usage(args);
-			return;
-		}
-		
-		String inputPath = args[0];
-		String initialOutput = args[1];
-		String outputPath;
-		int columnNumber = args.length - 3;
-		int clusterNumber = 0;
+	// Fonction recursive
+	private static void kmeans(String inputPath, String initialOutput, int hierarchicalLevel, int currentHierarchicalLevel, int clusterNumber, int columnNumber, int[] columns, Vector<Integer> previousCluster) throws IOException, ClassNotFoundException, InterruptedException
+	{
 		int nbIteration = 0;
 		boolean jobDone = false;
 		Job job = null;
 		Double centers[][];
-		int columns[];
 		long startIteration;
 		long endIteration;
+		String outputPath;
 		
-		try {
-			clusterNumber = Integer.parseInt(args[2]);
-		}
-		catch(NumberFormatException ex) {
-			System.out.println("[Error] Can't parse cluster number !");
-			usage(args);
-			return;
-		}
-		
-		// Try to parse all columns
-		columns = new int[columnNumber];
-		for (int i = 0; i < columnNumber; ++i)
+		System.out.println("Kmeans function called !");
+		System.out.println("inputPath: " + inputPath);
+		System.out.println("initialOutput: " + initialOutput);
+		System.out.println("current: " + currentHierarchicalLevel);
+		System.out.print("Previous: ");
+		for (int i = 0; i < previousCluster.size(); ++i)
 		{
-			try {
-				columns[i] = Integer.parseInt(args[3+i]);
-			}
-			catch(NumberFormatException ex) {
-				System.out.println("[Error] Can't parse column number !");
-				usage(args);
-				return;
-			}
+			System.out.print(previousCluster.get(i) + " ");
 		}
-		///// End parsing
-		
-		System.out.println("=== K-Means algorithm for hadoop ===");
-		System.out.println("Arguments:");
-		System.out.println("\tinputPath: \t" + inputPath);
-		System.out.println("\toutputPath: \t" + initialOutput);
-		System.out.println("\tnumber of clusters: \t" + clusterNumber);
-		System.out.println("\tnumber of columns: \t" + columnNumber);
+		System.out.println("");
 		
 		// Create configuration
 		Configuration conf = new Configuration();
@@ -233,12 +197,23 @@ public class App
 		conf.setInt("clusterNumber", clusterNumber);
 		conf.setInt("columnNumber", columnNumber);
 		conf.set("outputName", initialOutput);
+		conf.setInt("hierarchicalLevel", currentHierarchicalLevel);
+		
+		for (int i = 0; i < currentHierarchicalLevel; ++i)
+		{
+			conf.setInt("cluster" + i, previousCluster.get(i));
+		}
 
 		// Launch each iteration
 		while (!jobDone)
 		{
 			// Generate new outputPath
-			outputPath = initialOutput + "_" + System.nanoTime();
+			outputPath = initialOutput + "_" + currentHierarchicalLevel;
+			for (int i = 0; i < previousCluster.size(); ++i)
+			{
+				outputPath += "_" + previousCluster.get(i);
+			}
+			outputPath += "_" + System.nanoTime();
 			
 			// Declare the job
 			job = Job.getInstance(conf, "K-Means iteration " + nbIteration);
@@ -335,7 +310,6 @@ public class App
 			nbIteration++;
 			jobDone = converged;
 		}
-		
 		// Iterating done !
 		
 		// Now we have to save the data !
@@ -380,14 +354,103 @@ public class App
 		 * Paths
 		 *****/
 		CSVInputFormat.addInputPath(job, new Path(inputPath));
-		CSVOutputFormat.setOutputPath(job, new Path(initialOutput));
+		outputPath = initialOutput + "_" + currentHierarchicalLevel;
+		for (int i = 0; i < previousCluster.size(); ++i)
+		{
+			outputPath += "_" + previousCluster.get(i);
+		}
+		CSVOutputFormat.setOutputPath(job, new Path(outputPath));
 		
 		/*****
 		 * Launch and wait
 		 ****/
 		job.waitForCompletion(true);
 		
-		// App done ! :D
+		if (currentHierarchicalLevel < hierarchicalLevel-1)
+		{
+			// For each clusters, relaunch kmeans on the sub-cluster
+			for (int i = 0; i < clusterNumber; ++i)
+			{
+				String newInputPath = initialOutput + "_" + currentHierarchicalLevel;
+				for (int j = 0; j < previousCluster.size(); ++j)
+				{
+					newInputPath += "_" + previousCluster.get(j);
+				}
+				newInputPath += "/" + initialOutput.split("/")[initialOutput.split("/").length-1] + ".csv";
+				Vector<Integer> newVector = (Vector<Integer>) previousCluster.clone();
+				newVector.addElement(i);
+				kmeans(newInputPath, initialOutput, hierarchicalLevel, currentHierarchicalLevel+1, clusterNumber, columnNumber, columns, newVector);
+			}
+		}
+		
+		// Here All sub-kmeans are done ! We so have the file for this level complete
+		// but in fragments... We have to find a way to reassemble it !
+	}
+	
+	/**
+	 * Main driver of the hadoop task
+	 * 
+	 * @throws Exception
+	 * 
+	 * @param args
+	 * 		Arguments pass to the program
+	 */
+	public static void main( String[] args ) throws Exception {
+		///// Parse arguments
+		if (args.length < 5)
+		{
+			usage(args);
+			return;
+		}
+		
+		String inputPath = args[0];
+		String initialOutput = args[1];
+		int columnNumber = args.length - 4;
+		int clusterNumber = 0;
+		int hierarchicalLevel = 0;
+		int currentHierarchicalLevel = 0;
+		int columns[];
+		
+		try {
+			clusterNumber = Integer.parseInt(args[2]);
+		} catch(NumberFormatException ex) {
+			System.out.println("[Error] Can't parse cluster number !");
+			usage(args);
+			return;
+		}
+		
+		try {
+			hierarchicalLevel = Integer.parseInt(args[3]);
+		} catch(NumberFormatException ex) {
+			System.out.println("[Error] Can't parse the hierarchical level !");
+			usage(args);
+			return;
+		}
+		
+		// Try to parse all columns
+		columns = new int[columnNumber];
+		for (int i = 0; i < columnNumber; ++i)
+		{
+			try {
+				columns[i] = Integer.parseInt(args[4+i]);
+			}
+			catch(NumberFormatException ex) {
+				System.out.println("[Error] Can't parse column number !");
+				usage(args);
+				return;
+			}
+		}
+		///// End parsing
+		
+		System.out.println("=== K-Means hierarchical algorithm for hadoop ===");
+		System.out.println("Arguments:");
+		System.out.println("\tinputPath: \t" + inputPath);
+		System.out.println("\toutputPath: \t" + initialOutput);
+		System.out.println("\tnumber of clusters: \t" + clusterNumber);
+		System.out.println("\thierarchical levels: \t" + hierarchicalLevel);
+		System.out.println("\tnumber of columns: \t" + columnNumber);
+		
+		kmeans(inputPath, initialOutput, hierarchicalLevel, currentHierarchicalLevel, clusterNumber, columnNumber, columns, new Vector<Integer>());
 	}
 }
 
