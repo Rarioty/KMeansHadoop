@@ -61,7 +61,7 @@ public class App
 		
 		for (int i = 0; i < columnNumber; ++i)
 		{
-			distance += Math.abs(first[i] - second[i]);
+			distance += Math.abs(second[i] - first[i]) * Math.abs(second[i] - first[i]);
 		}
 		
 		return distance;
