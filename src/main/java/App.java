@@ -7,6 +7,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Job;
@@ -387,6 +388,25 @@ public class App
 		// but in fragments... We have to find a way to reassemble it !
 	}
 	
+	private static void constructPaths(String[] paths, int start, int end)
+	{
+		int middle = start + (end-start)/2;
+		for (int i = start; i < middle; ++i)
+		{
+			paths[i] += "_" + 0;
+		}
+		for (int i = middle; i < end; ++i)
+		{
+			paths[i] += "_" + 1;
+		}
+		
+		if (end-start != 2)
+		{
+			constructPaths(paths, start, middle);
+			constructPaths(paths, middle, end);
+		}
+	}
+	
 	/**
 	 * Main driver of the hadoop task
 	 * 
@@ -451,6 +471,36 @@ public class App
 		System.out.println("\tnumber of columns: \t" + columnNumber);
 		
 		kmeans(inputPath, initialOutput, hierarchicalLevel, currentHierarchicalLevel, clusterNumber, columnNumber, columns, new Vector<Integer>());
+		
+		Configuration conf = new Configuration();
+		FileSystem fs = FileSystem.get(conf);
+		
+		// Generating all filenames
+		String initialPath = initialOutput + "_" + (hierarchicalLevel-1);
+		int nbPaths = (int) Math.pow(2, (hierarchicalLevel-1));
+		String stringPaths[] = new String[nbPaths];
+		for (int i = 0; i < nbPaths; ++i)
+		{
+			stringPaths[i] = initialPath;
+		}
+		
+		constructPaths(stringPaths, 0, nbPaths);
+		
+		Path paths[] = new Path[nbPaths];
+		
+		for (int i = 0; i < nbPaths; ++i)
+		{
+			paths[i] = new Path(stringPaths[i] + "/" + initialOutput.split("/")[initialOutput.split("/").length-1] + ".csv");
+			fs.rename(paths[i], new Path(stringPaths[i] + ".csv"));
+			paths[i] = new Path(stringPaths[i] + ".csv");
+		}
+		
+		FileSystem.create(fs, new Path(initialOutput + ".csv"), FsPermission.getDefault());
+		fs.close();
+		fs = FileSystem.get(conf);
+		fs.concat(new Path(initialOutput + ".csv"), paths);
+		
+		// App done !
 	}
 }
 
