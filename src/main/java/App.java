@@ -4,8 +4,10 @@ import java.io.IOException;
 import java.util.Vector;
 
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.ContentSummary;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.FileUtil;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.io.IntWritable;
@@ -13,6 +15,8 @@ import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.lib.input.TextInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.TextOutputFormat;
+
+import com.sun.org.apache.xml.internal.serializer.OutputPropertiesFactory;
 
 import main.java.format.CSVInputFormat;
 import main.java.format.CSVOutputFormat;
@@ -61,7 +65,7 @@ public class App
 		
 		for (int i = 0; i < columnNumber; ++i)
 		{
-			distance += Math.abs(second[i] - first[i]) * Math.abs(second[i] - first[i]);
+			distance += (second[i] - first[i]) * (second[i] - first[i]);
 		}
 		
 		return distance;
@@ -142,7 +146,30 @@ public class App
 		return returned;
 	}
 	
-	// Fonction recursive
+	/**
+	 * This function is a recursive one that does all iterations and then write on a file the results
+	 * 
+	 * @throws IOException
+	 * @throws ClassNotFoundException
+	 * @throws InterruptedException
+	 * 
+	 * @param inputPath
+	 * 		The input path for this iteration
+	 * @param initialOutput
+	 * 		The initial output path
+	 * @param hierarchicalLevel
+	 * 		Max hierarchical level to handle
+	 * @param currentHierarchicalLevel
+	 * 		Current hierarchical level
+	 * @param clusterNumber
+	 * 		Number of cluster
+	 * @param columnNumber
+	 * 		Number of dimensions
+	 * @param columns
+	 * 		Which column represent which dimension
+	 * @param previousCluster
+	 * 		Vector of previous clusters found, it allow us to filter old files to handle only the lines we want
+	 */
 	private static void kmeans(String inputPath, String initialOutput, int hierarchicalLevel, int currentHierarchicalLevel, int clusterNumber, int columnNumber, int[] columns, Vector<Integer> previousCluster) throws IOException, ClassNotFoundException, InterruptedException
 	{
 		int nbIteration = 0;
@@ -157,6 +184,7 @@ public class App
 		System.out.println("inputPath: " + inputPath);
 		System.out.println("initialOutput: " + initialOutput);
 		System.out.println("current: " + currentHierarchicalLevel);
+		System.out.println("columnNumber: " + columnNumber);
 		System.out.print("Previous: ");
 		for (int i = 0; i < previousCluster.size(); ++i)
 		{
@@ -296,7 +324,7 @@ public class App
 				if (converged && App.squaredDistance(centers[i], newCenters[i], columnNumber) > DELTA_CONVERGED)
 				{
 					System.out.println("Divergence found for cluster " + i);
-					System.out.println("Difference: " + App.squaredDistance(centers[i], newCenters[i], columnNumber));
+					System.out.println("Difference: " + Math.sqrt(App.squaredDistance(centers[i], newCenters[i], columnNumber)));
 					converged = false;
 				}
 				centers[i] = newCenters[i];
@@ -386,24 +414,38 @@ public class App
 		
 		// Here All sub-kmeans are done ! We so have the file for this level complete
 		// but in fragments... We have to find a way to reassemble it !
+		// -> Found
 	}
 	
-	private static void constructPaths(String[] paths, int start, int end)
+	/**
+	 * Recursive function that construct all paths of part files of the kmeans algorithm.
+	 * 
+	 * @param paths
+	 * 		Array to fill
+	 * @param start
+	 * 		Start in the array
+	 * @param end
+	 * 		End in the array
+	 * @param clusterNumber
+	 * 		Number of cluster
+	 */
+	private static void constructPaths(String[] paths, int start, int end, int clusterNumber)
 	{
-		int middle = start + (end-start)/2;
-		for (int i = start; i < middle; ++i)
+		int step = (end-start)/clusterNumber;
+		for (int i = 0; i < clusterNumber; ++i)
 		{
-			paths[i] += "_" + 0;
-		}
-		for (int i = middle; i < end; ++i)
-		{
-			paths[i] += "_" + 1;
+			for (int j = i*step; j < (i+1)*step; ++j)
+			{
+				paths[start + j] += "_" + i;
+			}
 		}
 		
-		if (end-start != 2)
+		if (end-start != clusterNumber)
 		{
-			constructPaths(paths, start, middle);
-			constructPaths(paths, middle, end);
+			for (int i = 0; i < clusterNumber; ++i)
+			{
+				constructPaths(paths, i*step, (i+1)*step, clusterNumber);
+			}
 		}
 	}
 	
@@ -428,7 +470,6 @@ public class App
 		int columnNumber = args.length - 4;
 		int clusterNumber = 0;
 		int hierarchicalLevel = 0;
-		int currentHierarchicalLevel = 0;
 		int columns[];
 		
 		try {
@@ -470,29 +511,43 @@ public class App
 		System.out.println("\thierarchical levels: \t" + hierarchicalLevel);
 		System.out.println("\tnumber of columns: \t" + columnNumber);
 		
-		kmeans(inputPath, initialOutput, hierarchicalLevel, currentHierarchicalLevel, clusterNumber, columnNumber, columns, new Vector<Integer>());
+		kmeans(inputPath, initialOutput, hierarchicalLevel, 0, clusterNumber, columnNumber, columns, new Vector<Integer>());
 		
 		Configuration conf = new Configuration();
 		FileSystem fs = FileSystem.get(conf);
 		
 		// Generating all filenames
 		String initialPath = initialOutput + "_" + (hierarchicalLevel-1);
-		int nbPaths = (int) Math.pow(2, (hierarchicalLevel-1));
+		int nbPaths = (int) Math.pow(clusterNumber, (hierarchicalLevel-1));
 		String stringPaths[] = new String[nbPaths];
 		for (int i = 0; i < nbPaths; ++i)
 		{
 			stringPaths[i] = initialPath;
 		}
 		
-		constructPaths(stringPaths, 0, nbPaths);
+		constructPaths(stringPaths, 0, nbPaths, clusterNumber);
 		
-		Path paths[] = new Path[nbPaths];
-		
+		// Get number of viable files
+		int nbFiles = 0;
 		for (int i = 0; i < nbPaths; ++i)
 		{
-			paths[i] = new Path(stringPaths[i] + "/" + initialOutput.split("/")[initialOutput.split("/").length-1] + ".csv");
-			fs.rename(paths[i], new Path(stringPaths[i] + ".csv"));
-			paths[i] = new Path(stringPaths[i] + ".csv");
+			Path path = new Path(stringPaths[i] + "/" + initialOutput.split("/")[initialOutput.split("/").length-1] + ".csv");
+			ContentSummary summary = fs.getContentSummary(path);
+			if (summary.getLength() > 0)
+				nbFiles++;
+		}
+		
+		Path paths[] = new Path[nbFiles];
+		
+		int actualFile = 0;
+		for (int i = 0; i < nbPaths; ++i)
+		{
+			Path outputPath = new Path(stringPaths[i] + ".csv");
+			Path oldPath = new Path(stringPaths[i] + "/" + initialOutput.split("/")[initialOutput.split("/").length-1] + ".csv");
+			FileUtil.copy(fs, oldPath, fs, outputPath, false, conf);
+			ContentSummary summary = fs.getContentSummary(outputPath);
+			if (summary.getLength() > 0)
+				paths[actualFile++] = outputPath;
 		}
 		
 		FileSystem.create(fs, new Path(initialOutput + ".csv"), FsPermission.getDefault());

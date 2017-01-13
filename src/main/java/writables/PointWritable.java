@@ -59,6 +59,8 @@ public class PointWritable implements Writable {
 		}
 		result += dimensions[nbDimensions-1];
 		
+		result += "\t" + weight;
+		
 		return result;
 	}
 }

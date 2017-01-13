@@ -103,6 +103,8 @@ public class KMapper extends Mapper<LongWritable, ArrayList<String>, IntWritable
 	 */
 	@Override
 	public void map(LongWritable key, ArrayList<String> value, Context context) throws IOException, InterruptedException {
+		if (value.size() == 1)
+			return;
 		
 		// Get double value
 		Double[] point = new Double[columnNumber];

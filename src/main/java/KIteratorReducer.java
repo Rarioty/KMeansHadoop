@@ -87,7 +87,7 @@ public class KIteratorReducer extends Reducer<IntWritable, PointWritable, IntWri
 			context.getCounter("centers", "" + key.get() + "_" + i).setValue(Double.doubleToLongBits(averages[i]));
 		}
 		
-		context.write(key, new PointWritable(columnNumber, averages, 1));
+		context.write(key, new PointWritable(columnNumber, averages, numElems));
 	}
 	
 	/**

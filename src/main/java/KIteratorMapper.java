@@ -36,7 +36,7 @@ public class KIteratorMapper extends Mapper<LongWritable, ArrayList<String>, Int
 	public void setup(Context context) {
 		conf = context.getConfiguration();
 		clusterNumber = conf.getInt("clusterNumber", 1);
-		columnNumber = conf.getInt("columnNumber", 0);
+		columnNumber = conf.getInt("columnNumber", -1);
 		
 		// Generate all centers in memory
 		centers = new Double[clusterNumber][];
@@ -105,6 +105,10 @@ public class KIteratorMapper extends Mapper<LongWritable, ArrayList<String>, Int
 	 */
 	@Override
 	public void map(LongWritable key, ArrayList<String> value, Context context) throws IOException, InterruptedException {
+		// If empty line => 1 value with '' inside !
+		if (value.size() == 1)
+			return;
+
 		// Get double value
 		Double[] point = new Double[columnNumber];
 		int nearestCenter = 0;
@@ -119,7 +123,9 @@ public class KIteratorMapper extends Mapper<LongWritable, ArrayList<String>, Int
 		try {
 			for (int i = 0; i < columnNumber; ++i)
 			{
-				point[i] = Double.valueOf(value.get(columns[i]));
+				point[i] = Double.valueOf(
+						value.get(columns[i])
+				);
 			}
 		} catch(NumberFormatException ex) {
 			System.err.println("Error while parsing line " + key.get());
@@ -128,6 +134,8 @@ public class KIteratorMapper extends Mapper<LongWritable, ArrayList<String>, Int
 		
 		// Search nearest center !
 		nearestCenter = getNearestCenter(point);
+		
+		System.out.println("For line " + key.get() + ", the nearest center is " + nearestCenter);
 		
 		context.write(new IntWritable(nearestCenter), new PointWritable(columnNumber, point, 1));
 	}
