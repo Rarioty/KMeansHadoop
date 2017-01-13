@@ -119,9 +119,12 @@ public class App
 					// Finally try to convert to a double !
 					try {
 						centers[i][j] = Double.valueOf(values[columns[j]]);	
-					} catch (Exception e) {
+					} catch (NumberFormatException e) {
+						/*
 						System.out.print(e.getMessage());
 						e.printStackTrace(System.out);
+						*/
+						i--;
 						break;
 					}
 				}
