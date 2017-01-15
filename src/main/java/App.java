@@ -16,8 +16,6 @@ import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.lib.input.TextInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.TextOutputFormat;
 
-import com.sun.org.apache.xml.internal.serializer.OutputPropertiesFactory;
-
 import main.java.format.CSVInputFormat;
 import main.java.format.CSVOutputFormat;
 import main.java.writables.PointWritable;
@@ -558,7 +556,7 @@ public class App
 		fs = FileSystem.get(conf);
 		fs.concat(new Path(initialOutput + ".csv"), paths);
 		
-		// App done !
+		// K-Means done !
 	}
 }
 
